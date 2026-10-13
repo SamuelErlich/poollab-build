@@ -1,0 +1,108 @@
+# No GitHub: Add file > Create new file.
+# Nome do arquivo: .github/workflows/compilar.yml
+# Cole todo este conteudo e salve com Commit changes na branch principal.
+# Antes, envie PoolLab_iOS_KeyAuth_Fontes.zip intacto para a raiz do repositorio.
+# Depois: Actions > Compilar PoolLab > Run workflow.
+# Preencha os dados publicos da sua aplicacao KeyAuth.
+# O resultado e um framework para enviar de volta aqui; ainda nao e o IPA.
+
+name: Compilar PoolLab
+
+on:
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: Nome da sua aplicacao KeyAuth (AppName)
+        required: true
+        type: string
+      owner_id:
+        description: OwnerID da sua aplicacao KeyAuth
+        required: true
+        type: string
+      app_version:
+        description: Versao cadastrada no KeyAuth
+        required: true
+        default: '1.0'
+        type: string
+      subscription:
+        description: Nome do plano exigido (opcional)
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: poollab-compilar-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  compilar:
+    runs-on: macos-15
+    timeout-minutes: 30
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Baixar os arquivos do repositorio
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Conferir e abrir o ZIP dos fontes
+        run: |
+          set -euo pipefail
+          python3 - <<'PY'
+          from pathlib import Path
+          import hashlib
+          import zipfile
+
+          source = Path('PoolLab_iOS_KeyAuth_Fontes.zip')
+          if not source.is_file():
+              raise SystemExit('Envie PoolLab_iOS_KeyAuth_Fontes.zip para a raiz do repositorio, sem extrair e sem alterar o nome.')
+          if source.stat().st_size != 123040:
+              raise SystemExit('O ZIP e de outra versao. Use o arquivo de fontes entregue junto deste workflow.')
+          expected = 'c912309f40f87ec3232d61c7ac48ce55a662f2aaef1740108027993ee24e1230'
+          if hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+              raise SystemExit('O ZIP mudou. Baixe novamente o arquivo de fontes entregue junto deste workflow.')
+          destination = Path('_poollab_build')
+          destination.mkdir(exist_ok=False)
+          # The complete archive was verified against the reviewed source bundle.
+          with zipfile.ZipFile(source) as archive:
+              archive.extractall(destination)
+          if not (destination / 'PoolLab/scripts/build_integration_framework.sh').is_file():
+              raise SystemExit('O pacote nao contem o script esperado.')
+          print('Fontes conferidos. A compilacao sera feita no Mac do GitHub.')
+          PY
+
+      - name: Testar e compilar para iPhone
+        working-directory: _poollab_build/PoolLab
+        env:
+          KEYAUTH_APP_NAME: ${{ inputs.app_name }}
+          KEYAUTH_OWNER_ID: ${{ inputs.owner_id }}
+          KEYAUTH_VERSION: ${{ inputs.app_version }}
+          KEYAUTH_SUBSCRIPTION: ${{ inputs.subscription }}
+        run: |
+          set -euo pipefail
+          bash scripts/build_integration_framework.sh 2>&1 | tee poollab-build.log
+
+      - name: Disponibilizar o arquivo para enviar de volta
+        uses: actions/upload-artifact@v7
+        with:
+          name: PoolLab-para-enviar-aqui
+          path: |
+            _poollab_build/PoolLab/dist/PoolLabIntegration_unsigned.framework.zip
+            _poollab_build/PoolLab/dist/PoolLabIntegration_unsigned.framework.zip.sha256
+          if-no-files-found: error
+          retention-days: 7
+          compression-level: 0
+
+      - name: Guardar o log para corrigir eventual erro
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: PoolLab-log-da-compilacao
+          path: _poollab_build/PoolLab/poollab-build.log
+          if-no-files-found: ignore
+          retention-days: 7
