@@ -85,6 +85,7 @@ jobs:
           KEYAUTH_SUBSCRIPTION: ${{ inputs.subscription }}
         run: |
           set -euo pipefail
+          sed -i '' 's/^xcrun lipo -verify_arch arm64 \(.*\)$/xcrun lipo \1 -verify_arch arm64/' scripts/build_integration_framework.sh
           bash scripts/build_integration_framework.sh 2>&1 | tee poollab-build.log
 
       - name: Disponibilizar o arquivo para enviar de volta
