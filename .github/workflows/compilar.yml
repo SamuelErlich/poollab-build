@@ -64,9 +64,9 @@ jobs:
           source = Path('SDKPool_Fontes.zip')
           if not source.is_file():
               raise SystemExit('Envie SDKPool_Fontes.zip para a raiz do repositorio, sem extrair.')
-          if source.stat().st_size != 1424237:
+          if source.stat().st_size != 1437707:
               raise SystemExit('ZIP de outra versao. Substitua o ZIP e o workflow pelo par V7 recebido.')
-          if hashlib.sha256(source.read_bytes()).hexdigest() != 'b701e45ce55e10fc78c7635110904d847d95e784bbc3bd24491b0c04199ea364':
+          if hashlib.sha256(source.read_bytes()).hexdigest() != '0b3925f11f9dafab5c59f53afdf6467c3fe965c701bd7012c8063649b412fbf5':
               raise SystemExit('O ZIP mudou. Use o arquivo V7 original recebido junto deste workflow.')
           destination = Path('_poollab_build')
           destination.mkdir(exist_ok=False)
