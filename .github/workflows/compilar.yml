@@ -5,7 +5,7 @@
 # Depois: Actions > Compilar PoolLab > Run workflow.
 # Se o arquivo ja existe, substitua todo o conteudo e salve com Commit changes.
 # Inicie uma NOVA execucao com Run workflow; Re-run jobs usaria o YAML antigo.
-# Aceita o ZIP V3 do ultimo build e o ZIP corrigido; a correcao do SDK e automatica.
+# Atualizacao V4: substitua TAMBEM o ZIP de fontes; pacotes antigos sao recusados.
 # Preencha os dados publicos da sua aplicacao KeyAuth.
 # O resultado e um framework para enviar de volta aqui; ainda nao e o IPA.
 
@@ -66,8 +66,7 @@ jobs:
           if not source.is_file():
               raise SystemExit('Envie PoolLab_iOS_KeyAuth_Fontes.zip para a raiz do repositorio, sem extrair e sem alterar o nome.')
           supported = {
-              '2812e214abccdc7f723e33a7a633fd3fd168a2767dce8d57a08942767c3eaf79': 201367,
-              '06ff38a28cbdeff9224b3e135d68e44425c19c6105c4f8514a0024fd677cca8e': 208356,
+              'b433143438207b19ae72413626805d5fe164437926ad989f807b0266e3d224c1': 292720,
           }
           size = source.stat().st_size
           if size not in supported.values():
@@ -89,96 +88,15 @@ jobs:
               raise SystemExit('O script de compilacao nao corresponde a versao esperada.')
           for name in ('PLAdControl.m', 'PLQueueBridge.m'):
               if not (destination / 'PoolLab/Integrated' / name).is_file():
-                  raise SystemExit('O pacote nao contem as funcoes da atualizacao V3.')
-          source_fixes = {
-              "Integrated/PLRuntimeBridge.m": {
-                  "before": "004c4b7c7e65bc62d6d742fa809083cb1bddb6c86281d33a60af72203b3b209c",
-                  "after": "c8a13e2dfaa2c105c986f5aa4c95426057b73953625e0219743ae514274a5e2a",
-                  "edits": [
-                      [
-                          8,
-                          9,
-                          [
-                              "#import <mach/vm_map.h>\n",
-                              "\n",
-                              "_Static_assert(sizeof(vm_address_t) >= sizeof(uintptr_t), \"VM addresses must preserve native pointers.\");\n",
-                              "_Static_assert(sizeof(vm_size_t) >= sizeof(size_t), \"VM sizes must preserve native lengths.\");\n"
-                          ]
-                      ],
-                      [
-                          136,
-                          139,
-                          [
-                              "    vm_size_t copied = 0;\n",
-                              "    kern_return_t result = vm_read_overwrite(mach_task_self(), (vm_address_t)address,\n",
-                              "        (vm_size_t)length, (vm_address_t)(uintptr_t)output, &copied);\n"
-                          ]
-                      ]
-                  ]
-              },
-              "Integrated/PLQueueBridge.m": {
-                  "before": "652922ed5d0330b2bf2c4dd482f35a035115f5ab5f253893c920c10f63bf799a",
-                  "after": "0641414e83b2c74bb8e8b0322c63b37f417d940aee82c192cb8d0ae876fb9eea",
-                  "edits": [
-                      [
-                          7,
-                          8,
-                          [
-                              "#import <mach/vm_map.h>\n"
-                          ]
-                      ],
-                      [
-                          9,
-                          9,
-                          [
-                              "\n",
-                              "_Static_assert(sizeof(vm_address_t) >= sizeof(uintptr_t), \"VM addresses must preserve native pointers.\");\n",
-                              "_Static_assert(sizeof(vm_size_t) >= sizeof(size_t), \"VM sizes must preserve native lengths.\");\n"
-                          ]
-                      ],
-                      [
-                          50,
-                          53,
-                          [
-                              "    vm_size_t copied = 0;\n",
-                              "    return vm_read_overwrite(mach_task_self(), (vm_address_t)address, (vm_size_t)length,\n",
-                              "        (vm_address_t)(uintptr_t)destination, &copied) == KERN_SUCCESS && copied == length;\n"
-                          ]
-                      ]
-                  ]
-              }
-          }
-          for relative, fix in source_fixes.items():
-              path = destination / 'PoolLab' / relative
-              original = path.read_bytes()
-              original_hash = hashlib.sha256(original).hexdigest()
-              if original_hash == fix['before']:
-                  lines = original.decode('utf-8').splitlines(keepends=True)
-                  for start, end, replacement in reversed(fix['edits']):
-                      lines[start:end] = replacement
-                  corrected = ''.join(lines).encode('utf-8')
-                  if hashlib.sha256(corrected).hexdigest() != fix['after']:
-                      raise SystemExit('Falha na verificacao da correcao: ' + relative)
-                  path.write_bytes(corrected)
-                  print('Compatibilidade com o SDK iPhone corrigida: ' + relative)
-              elif original_hash != fix['after']:
-                  raise SystemExit('Fonte diferente da revisao conferida: ' + relative)
-              else:
-                  print('Fonte ja corrigido: ' + relative)
-
-          # Record the exact source adjustment when building the previous V3 archive.
+                  raise SystemExit('O pacote nao contem as funcoes da atualizacao V4.')
           root = destination / 'PoolLab'
-          record = {'reason': 'iPhoneOS public vm_read_overwrite compatibility',
-                    'reported_run': 38345438366,
-                    'source_hashes': {name: fix['after'] for name, fix in source_fixes.items()}}
-          record_name = 'Validation/AppliedSDKCompatibilityFix.json'
-          (root / record_name).write_text(json.dumps(record, indent=2) + '\n', encoding='utf-8')
-          manifest_path = root / 'MANIFESTO_SHA256.json'
-          manifest = json.loads(manifest_path.read_text(encoding='utf-8'))
-          for relative, fix in source_fixes.items():
-              manifest[relative] = fix['after']
-          manifest[record_name] = hashlib.sha256((root / record_name).read_bytes()).hexdigest()
-          manifest_path.write_text(json.dumps(manifest, indent=2) + '\n', encoding='utf-8')
+          manifest = json.loads((root / 'MANIFESTO_SHA256.json').read_text())
+          for relative, expected in manifest.items():
+              if hashlib.sha256((root / relative).read_bytes()).hexdigest() != expected:
+                  raise SystemExit('Falha na integridade dos fontes: ' + relative)
+          project = (root / 'PoolLab.xcodeproj/project.pbxproj').read_text()
+          if project.count('CURRENT_PROJECT_VERSION = 4;') != 2:
+              raise SystemExit('Esta execucao exige PoolLab V4, build 4.')
           print('Fontes conferidos. A compilacao sera feita no Mac do GitHub.')
           PY
 
