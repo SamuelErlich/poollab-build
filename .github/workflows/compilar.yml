@@ -3,6 +3,9 @@
 # Cole todo este conteudo e salve com Commit changes na branch principal.
 # Antes, envie PoolLab_iOS_KeyAuth_Fontes.zip intacto para a raiz do repositorio.
 # Depois: Actions > Compilar PoolLab > Run workflow.
+# Se o arquivo ja existe, substitua todo o conteudo e salve com Commit changes.
+# Inicie uma NOVA execucao com Run workflow; Re-run jobs usaria o YAML antigo.
+# Substitua TAMBEM o ZIP dos fontes pelo pacote desta atualizacao V3.
 # Preencha os dados publicos da sua aplicacao KeyAuth.
 # O resultado e um framework para enviar de volta aqui; ainda nao e o IPA.
 
@@ -61,18 +64,30 @@ jobs:
           source = Path('PoolLab_iOS_KeyAuth_Fontes.zip')
           if not source.is_file():
               raise SystemExit('Envie PoolLab_iOS_KeyAuth_Fontes.zip para a raiz do repositorio, sem extrair e sem alterar o nome.')
-          if source.stat().st_size != 123040:
-              raise SystemExit('O ZIP e de outra versao. Use o arquivo de fontes entregue junto deste workflow.')
-          expected = 'c912309f40f87ec3232d61c7ac48ce55a662f2aaef1740108027993ee24e1230'
-          if hashlib.sha256(source.read_bytes()).hexdigest() != expected:
+          supported = {
+              '2812e214abccdc7f723e33a7a633fd3fd168a2767dce8d57a08942767c3eaf79': 201367,
+          }
+          size = source.stat().st_size
+          if size not in supported.values():
+              raise SystemExit('O ZIP e de outra versao. Use o pacote de fontes entregue nesta conversa.')
+          digest = hashlib.sha256(source.read_bytes()).hexdigest()
+          if supported.get(digest) != size:
               raise SystemExit('O ZIP mudou. Baixe novamente o arquivo de fontes entregue junto deste workflow.')
           destination = Path('_poollab_build')
           destination.mkdir(exist_ok=False)
           # The complete archive was verified against the reviewed source bundle.
           with zipfile.ZipFile(source) as archive:
               archive.extractall(destination)
-          if not (destination / 'PoolLab/scripts/build_integration_framework.sh').is_file():
+          script = destination / 'PoolLab/scripts/build_integration_framework.sh'
+          if not script.is_file():
               raise SystemExit('O pacote nao contem o script esperado.')
+          content = script.read_text(encoding='utf-8')
+          required = 'xcrun lipo "$framework_path/PoolLabIntegration" -verify_arch arm64'
+          if content.count(required) != 1:
+              raise SystemExit('O script de compilacao nao corresponde a versao esperada.')
+          for name in ('PLAdControl.m', 'PLQueueBridge.m'):
+              if not (destination / 'PoolLab/Integrated' / name).is_file():
+                  raise SystemExit('O pacote nao contem as funcoes da atualizacao V3.')
           print('Fontes conferidos. A compilacao sera feita no Mac do GitHub.')
           PY
 
@@ -85,7 +100,6 @@ jobs:
           KEYAUTH_SUBSCRIPTION: ${{ inputs.subscription }}
         run: |
           set -euo pipefail
-          sed -i '' 's/^xcrun lipo -verify_arch arm64 \(.*\)$/xcrun lipo \1 -verify_arch arm64/' scripts/build_integration_framework.sh
           bash scripts/build_integration_framework.sh 2>&1 | tee poollab-build.log
 
       - name: Disponibilizar o arquivo para enviar de volta
