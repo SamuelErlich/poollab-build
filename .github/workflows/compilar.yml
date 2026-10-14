@@ -1,6 +1,6 @@
 # Substitua .github/workflows/compilar.yml e o ZIP de fontes na raiz do repositorio.
 # Inicie uma NOVA execucao em Actions > Compilar SDKPool > Run workflow.
-# Resultado: IPA V15 completo para assinar no GBox. Nao precisa devolver o framework.
+# Resultado: IPA V16 completo para assinar no GBox. Nao precisa devolver o framework.
 # O link da base V4 abaixo expira em 20/10/2026; um novo link deve apontar ao mesmo IPA sem reassinar.
 
 name: Compilar SDKPool
@@ -52,7 +52,7 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Conferir e abrir os fontes V15
+      - name: Conferir e abrir os fontes V16
         run: |
           set -euo pipefail
           python3 - <<'PY'
@@ -64,10 +64,10 @@ jobs:
           source = Path('SDKPool_Fontes.zip')
           if not source.is_file():
               raise SystemExit('Envie SDKPool_Fontes.zip para a raiz do repositorio, sem extrair.')
-          if source.stat().st_size != 2618854:
-              raise SystemExit('ZIP de outra versao. Substitua o ZIP e o workflow pelo par V15 recebido.')
-          if hashlib.sha256(source.read_bytes()).hexdigest() != 'c668ace8b7f91de90e63f035a26e252a0146e348e3a62ca22c63783a3aa45561':
-              raise SystemExit('O ZIP mudou. Use o arquivo V15 original recebido junto deste workflow.')
+          if source.stat().st_size != 2974964:
+              raise SystemExit('ZIP de outra versao. Substitua o ZIP e o workflow pelo par V16 recebido.')
+          if hashlib.sha256(source.read_bytes()).hexdigest() != '956f852510b882d1b0dd3d73641299ea8a55f687b566083dc419ab4b0b9a3ea1':
+              raise SystemExit('O ZIP mudou. Use o arquivo V16 original recebido junto deste workflow.')
           destination = Path('_poollab_build')
           destination.mkdir(exist_ok=False)
           with zipfile.ZipFile(source) as archive:
@@ -78,12 +78,12 @@ jobs:
               if hashlib.sha256((root / relative).read_bytes()).hexdigest() != expected:
                   raise SystemExit('Falha na integridade dos fontes: ' + relative)
           project = (root / 'PoolLab.xcodeproj/project.pbxproj').read_text()
-          if project.count('CURRENT_PROJECT_VERSION = 16;') != 2:
-              raise SystemExit('Esta execucao exige SDKPool V15, build 16.')
+          if project.count('CURRENT_PROJECT_VERSION = 17;') != 2:
+              raise SystemExit('Esta execucao exige SDKPool V16, build 17.')
           for name in ('upgrade_poollab_ipa.py', 'download_poollab_base.py', 'build_integration_framework.sh'):
               if not (root / 'scripts' / name).is_file():
                   raise SystemExit('Script necessario ausente: ' + name)
-          print('Fontes V15 conferidos.')
+          print('Fontes V16 conferidos.')
           PY
 
       - name: Baixar e conferir a base do jogo
@@ -105,33 +105,33 @@ jobs:
           set -euo pipefail
           bash scripts/build_integration_framework.sh 2>&1 | tee poollab-build.log
 
-      - name: Montar e verificar o IPA V15
+      - name: Montar e verificar o IPA V16
         working-directory: _poollab_build/PoolLab
         run: |
           set -euo pipefail
-          mkdir ../framework_v15
-          /usr/bin/ditto -x -k dist/PoolLabIntegration_unsigned.framework.zip ../framework_v15
+          mkdir ../framework_v16
+          /usr/bin/ditto -x -k dist/PoolLabIntegration_unsigned.framework.zip ../framework_v16
           python3 scripts/upgrade_poollab_ipa.py \
             --ipa ../base_poollab_v4.ipa \
-            --framework ../framework_v15/PoolLabIntegration.framework \
-            --output dist/8BallPool_56.31.0_SDKPool_v15_unsigned.ipa
-          shasum -a 256 dist/8BallPool_56.31.0_SDKPool_v15_unsigned.ipa > dist/8BallPool_56.31.0_SDKPool_v15_unsigned.ipa.sha256
+            --framework ../framework_v16/PoolLabIntegration.framework \
+            --output dist/8BallPool_56.31.0_SDKPool_v16_unsigned.ipa
+          shasum -a 256 dist/8BallPool_56.31.0_SDKPool_v16_unsigned.ipa > dist/8BallPool_56.31.0_SDKPool_v16_unsigned.ipa.sha256
 
       - name: Disponibilizar o IPA completo para o GBox
         uses: actions/upload-artifact@v7
         with:
-          name: SDKPool-V15-IPA
+          name: SDKPool-V16-IPA
           path: |
-            _poollab_build/PoolLab/dist/8BallPool_56.31.0_SDKPool_v15_unsigned.ipa
-            _poollab_build/PoolLab/dist/8BallPool_56.31.0_SDKPool_v15_unsigned.manifest.json
-            _poollab_build/PoolLab/dist/8BallPool_56.31.0_SDKPool_v15_unsigned.ipa.sha256
+            _poollab_build/PoolLab/dist/8BallPool_56.31.0_SDKPool_v16_unsigned.ipa
+            _poollab_build/PoolLab/dist/8BallPool_56.31.0_SDKPool_v16_unsigned.manifest.json
+            _poollab_build/PoolLab/dist/8BallPool_56.31.0_SDKPool_v16_unsigned.ipa.sha256
           if-no-files-found: error
           retention-days: 7
           compression-level: 0
 
       - name: Mostrar onde baixar
         run: |
-          printf '%s\n' 'Baixe o artefato SDKPool-V15-IPA nesta pagina. Extraia o ZIP e importe o arquivo .ipa no GBox para assinar e instalar. O funcionamento em partida ainda precisa de validacao no iPhone.' >> "$GITHUB_STEP_SUMMARY"
+          printf '%s\n' 'Baixe o artefato SDKPool-V16-IPA nesta pagina. Extraia o ZIP e importe o arquivo .ipa no GBox para assinar e instalar. O funcionamento em partida ainda precisa de validacao no iPhone.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Guardar o log para corrigir eventual erro
         if: always()
